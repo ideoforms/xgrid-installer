@@ -1,12 +1,15 @@
-Xgrid Agent Installer for Mountain Lion
+# Xgrid Agent Installer for Mountain Lion
 --------------------------------------------------------------------------------
 Daniel Jones <http://www.erase.net>, November 2013
 
 This collection of scripts installs the Xgrid Agent and Controller components on
-OS X Mountain Lion. Though Xgrid was formally retired by Apple after 10.7, it still
-operates successfully on 10.8.
+OS X Mountain Lion, to allow for distributed computing on modern versions of OS X.
+Though Xgrid was formally retired by Apple after 10.7, it still operates successfully
+on 10.8.
 
-AGENT INSTALLATION
+These packages are UNTESTED on OS X 10.9 Mavericks.
+
+## AGENT INSTALLATION
 --------------------------------------------------------------------------------
 
 To install Xgrid on agent machines, it is recommended that you build a custom
@@ -41,7 +44,7 @@ After installing the framework
 
          sudo xgridctl agent restart
 
-CONTROLLER INSTALLATION
+## CONTROLLER INSTALLATION
 --------------------------------------------------------------------------------
 
 Installing the Xgrid controller is similar to agent installation. It is 
@@ -59,7 +62,7 @@ recommended that you build a custom package file:
 
          installer -pkg "$PKG_FILE" -target /
 
-THANKS
+## THANKS
 --------------------------------------------------------------------------------
 Thanks to Eric Pardee for his invaluable Xgrid installation recipe, on which
 this method is based.
