@@ -1,0 +1,295 @@
+#!/usr/bin/ruby
+
+require 'timeout'
+require 'osx/foundation'
+
+module Launchd
+  
+  LAUNCHCTL_COMMAND = "/bin/launchctl"
+  LAUNCHDAEMONS_PATH = "/System/Library/LaunchDaemons"
+  
+  def self.info_for_service(service)
+    `#{LAUNCHCTL_COMMAND} -1 list -x #{service} 2>&1`.to_ns.propertyList.to_ruby rescue nil
+  end
+  
+  def self.pid_for_service(service)
+    self.info_for_service(service)["PID"].to_i rescue nil
+  end
+  
+  def self.load_service(service)
+    system(LAUNCHCTL_COMMAND, "-1", "load", "-w", File.join(LAUNCHDAEMONS_PATH, "#{service}.plist"))
+  end
+  
+  def self.unload_service(service)
+    system(LAUNCHCTL_COMMAND, "-1", "unload", "-w", File.join(LAUNCHDAEMONS_PATH, "#{service}.plist"))
+  end
+  
+end
+
+class Daemonctl
+  
+  COLUMN_WIDTH = 24
+  COLUMN_HEADERS = ["daemon", "state", "pid"]
+
+  TIMEOUT_INTERVAL = 10
+
+  class << self
+
+    def verify_privileges
+      if Process.euid != 0
+        $stderr.puts "ERROR: you must run this command with root privileges"
+        exit(1)
+      end
+    end
+
+    def service_is_running(service)
+      Launchd.pid_for_service(service) != nil
+    end
+  
+    def column_fill(value)
+      value + ' ' * (COLUMN_WIDTH - value.length)
+    end
+
+    def print_header
+      COLUMN_HEADERS.each do |column_header|
+        print column_fill(column_header)
+      end
+      puts
+      COLUMN_HEADERS.each do |column_header|
+        print column_fill('=' * column_header.length)
+      end
+      puts
+    end
+
+    def service_short_name(service)
+      service.split('.').last
+    end
+  
+    def print_service_status_row(service, enable_state)
+      if enable_state
+        enable_text = "enabled"
+      else
+        enable_text = "disabled"
+      end
+      print column_fill(service_short_name(service))
+      if pid = Launchd.pid_for_service(service)
+        puts column_fill("running | #{enable_text}") + pid.to_s
+      else
+        puts "stopped | #{enable_text}"
+      end
+    end
+
+    def start_service(service)
+      unless service_is_running(service)
+        begin
+          Timeout::timeout(TIMEOUT_INTERVAL) do
+            Launchd.load_service(service)
+            begin sleep(1); end until service_is_running(service)
+          end
+        rescue Timeout::Error
+          $stderr.puts "ERROR: timeout starting " + service_short_name(service)
+          exit(1)
+        end
+      end
+    end
+
+    def stop_service(service)
+      if service_is_running(service)
+        begin
+          Timeout::timeout(TIMEOUT_INTERVAL) do
+            Launchd.unload_service(service)
+            begin sleep(1); end while service_is_running(service)
+          end
+        rescue Timeout::Error
+          $stderr.puts "ERROR: timeout stoping " + service_short_name(service)
+          exit(1)
+        end
+      end
+    end
+
+  end
+  
+end
+
+### main
+
+class Xgridctl < Daemonctl
+  
+  CONTROLLER_SERVICE = "com.apple.xgridcontrollerd"
+  AGENT_SERVICE = "com.apple.xgridagentd"
+  
+  CONTROLLER_PREFS_ID = "controller"
+  AGENT_PREFS_ID = "agent"
+  
+  class << self
+    
+    def prefs_dict(service)
+      path = "/Library/Preferences/com.apple.xgrid.#{service}.plist"
+      if File.exist?(path)
+        OSX::NSMutableDictionary.dictionaryWithContentsOfFile(path)
+      else
+        OSX::NSMutableDictionary.dictionary
+      end
+    end
+    
+    def prefs_dict_set(service, key, value)
+      begin
+        prefs = prefs_dict(service)
+        prefs.setObject_forKey(value, key)
+        prefs.writeToFile_atomically("/Library/Preferences/com.apple.xgrid.#{service}.plist", true)
+      rescue
+      end
+    end
+    
+    def enabled(service)
+      result = false
+      begin
+        prefs = prefs_dict(service).to_ruby
+        result = true if prefs["Enabled"] == true || prefs["Enabled"] == 1
+      rescue
+      end
+      result
+    end
+    
+    def set_enabled(service, value)
+      prefs_dict_set(service, "Enabled", value)
+    end
+    
+    def print_controller_status
+      print_header
+      print_service_status_row(CONTROLLER_SERVICE, enabled(CONTROLLER_PREFS_ID))
+    end
+
+    def print_agent_status
+      print_header
+      print_service_status_row(AGENT_SERVICE, enabled(AGENT_PREFS_ID))
+    end
+
+    def print_status
+      print_header
+      print_service_status_row(AGENT_SERVICE, enabled(AGENT_PREFS_ID))
+      print_service_status_row(CONTROLLER_SERVICE, enabled(CONTROLLER_PREFS_ID))
+    end
+
+    def start_controller
+      start_service(CONTROLLER_SERVICE)
+    end
+    
+    def start_and_enable_controller
+      set_enabled(CONTROLLER_PREFS_ID, true)
+      start_controller
+    end
+    
+    def stop_controller
+      stop_service(CONTROLLER_SERVICE)
+    end
+
+    def stop_and_disable_controller
+      set_enabled(CONTROLLER_PREFS_ID, false)
+      stop_controller
+    end
+    
+    def restart_controller
+      stop_controller
+      start_and_enable_controller
+    end
+
+    def start_agent
+      start_service(AGENT_SERVICE)
+    end
+
+    def start_and_enable_agent
+      set_enabled(AGENT_PREFS_ID, true)
+      start_agent
+    end
+    
+    def stop_agent
+      stop_service(AGENT_SERVICE)
+    end
+    
+    def stop_and_disable_agent
+      set_enabled(AGENT_PREFS_ID, false)
+      stop_agent
+    end
+    
+    def restart_agent
+      stop_agent
+      start_and_enable_agent
+    end
+
+    def start_enabled_services
+      start_controller if enabled(CONTROLLER_PREFS_ID)
+      start_agent if enabled(AGENT_PREFS_ID)
+    end
+    
+    def stop_services
+      stop_agent
+      stop_controller
+    end
+    
+    def restart_services
+      stop_services
+      start_enabled_services
+    end
+    
+    def print_usage
+      puts "usage: xgridctl [controller|agent] status|start|stop|restart"
+    end
+
+    def print_usage_error
+      $stderr.puts "ERROR: invalid arguments"
+      print_usage
+      exit(1)
+    end
+
+    def run
+      verify_privileges
+
+      status_action =     /^status$/
+      controller_target = /^(xgrid)?c(ontroller(d)?)?$/
+      agent_target =      /^(xgrid)?a(gent(d)?)?$/
+      start_action =      /^(start|on)$/
+      stop_action =       /^(stop|off)$/
+      restart_action =    /^restart$/
+
+      if ARGV.length == 0
+        print_usage
+      elsif ARGV.length == 1
+        action = *ARGV
+        case action
+        when status_action:    print_status
+        when start_action:     start_enabled_services
+        when stop_action:      stop_services
+        when restart_action:   restart_services
+        else                   print_usage_error
+        end
+      elsif ARGV.length == 2
+        target, action = *ARGV
+        case target
+        when controller_target
+          case action
+          when status_action:  print_controller_status
+          when start_action:   start_and_enable_controller
+          when stop_action:    stop_and_disable_controller
+          when restart_action: restart_controller
+          else                 print_usage_error
+          end
+        when agent_target
+          case action
+          when status_action:  print_agent_status
+          when start_action:   start_and_enable_agent
+          when stop_action:    stop_and_disable_agent
+          when restart_action: restart_agent
+          else                 print_usage_error
+          end
+        end
+      else
+        print_usage_error
+      end
+    end
+  
+  end
+  
+end
+
+Xgridctl.run

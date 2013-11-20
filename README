@@ -1,0 +1,72 @@
+Xgrid Agent Installer for Mountain Lion
+--------------------------------------------------------------------------------
+Daniel Jones <http://www.erase.net>, November 2013
+
+This collection of scripts installs the Xgrid Agent and Controller components on
+OS X Mountain Lion. Though Xgrid was formally retired by Apple after 10.7, it still
+operates successfully on 10.8.
+
+AGENT INSTALLATION
+--------------------------------------------------------------------------------
+
+To install Xgrid on agent machines, it is recommended that you build a custom
+package file which will automatically configure the agent to use a specific
+controller, with password authentication.
+
+  1. Change to the agent directory, and run:
+
+         ./build.sh
+
+     You will be prompted for a controller hostname and password.
+     A .pkg file will now be created corresponding to your controller setup.
+
+  2. Transfer the resulting .pkg to an agent machine, and open it.
+     This can be done via Finder, or by running:
+
+         installer -pkg "$PKG_FILE" -target /
+
+Alternatively, you can install the bundled .pkg file on an agent machine and
+configure it manually to point at your desired Xgrid controller. 
+
+After installing the framework
+
+  1. In /Library/Preferences/com.apple.xgrid.agent.plist
+     set ControllerName to your desired controller address.
+
+  2. Set the controller password by running
+
+         ./xgrid-encode-password.py > /etc/xgrid/agent/controller-password
+
+  3. Restart the Xgrid agent:
+
+         sudo xgridctl agent restart
+
+CONTROLLER INSTALLATION
+--------------------------------------------------------------------------------
+
+Installing the Xgrid controller is similar to agent installation. It is 
+recommended that you build a custom package file:
+
+  1. Change to the controller directory, and run:
+
+         ./build.sh
+
+     You will be prompted for a controller password.
+     A .pkg file will now be created corresponding to this controller setup.
+
+  2. Transfer the resulting .pkg to the desired controller machine, and open it.
+     This can be done via Finder, or by running:
+
+         installer -pkg "$PKG_FILE" -target /
+
+THANKS
+--------------------------------------------------------------------------------
+Thanks to Eric Pardee for his invaluable Xgrid installation recipe, on which
+this method is based.
+
+	http://tengrid.com/wiki1/index.php?title=Getting_the_server_to_work_on_Mountain_lion
+
+Thanks to T Elliott for revealing the method of encoding that Apple use for
+their Xgrid passwords.
+
+	http://telliott99.blogspot.co.uk/2009/11/xgrid-passwords.html

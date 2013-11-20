@@ -1,0 +1,16 @@
+#!/bin/bash
+
+#------------------------------------------------------------------------
+# Set up Xgrid Controller user
+#------------------------------------------------------------------------
+
+dscl localhost -create /Local/Default/Groups/_xgridcontroller || true
+dscl localhost -create /Local/Default/Groups/_xgridcontroller gid 85 || true
+dscl localhost -create /Local/Default/Users/_xgridcontroller || true
+dscl localhost -create /Local/Default/Users/_xgridcontroller uid 85 || true
+dscl localhost -create /Local/Default/Users/_xgridcontroller gid 85 || true
+dscl localhost -create /Local/Default/Users/_xgridcontroller shell /usr/bin/false || true
+dscl localhost -create /Local/Default/Users/_xgridcontroller home /var/xgrid/controller || true
+dscl localhost -create /Local/Default/Users/_xgridcontroller passwd "*" || true
+dscl localhost -create /Local/Default/Users/_xgridcontroller RealName "Xgrid Controller" || true
+dscl localhost -create /Local/Default/Users/_xgridcontroller RecordName xgridcontroller || true
