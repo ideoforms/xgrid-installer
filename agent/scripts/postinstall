@@ -13,6 +13,7 @@ chown -R xgridagent:_xgridagent /var/xgrid/agent
 
 chown -R root:wheel /System/Library/LaunchDaemons/com.apple.xgridagentd.plist
 chmod 644 /System/Library/LaunchDaemons/com.apple.xgridagentd.plist
+chmod 644 /Library/Preferences/com.apple.xgrid.agent.plist
 
 chown -R root:wheel /System/Library/Frameworks/XgridFoundation.framework 
 chown -R root:wheel /System/Library/PrivateFrameworks/BEEP.framework
